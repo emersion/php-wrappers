@@ -1,4 +1,7 @@
 <?php
+
+namespace Wrappers;
+
 /**
  * An interface for stream wrappers.
  * @see http://php.net/manual/en/class.streamwrapper.php#92277

@@ -7,12 +7,16 @@ High-performance wrappers for native FTP functions.
 
 ```php
 <?php
-use FtpStream;
+use Wrappers\FtpStream;
+
+FtpStream::register(); // Replace the built-in wrapper
 
 var_dump(file_put_contents('ftp://host/lol.txt', 'Hello world'));
 var_dump(file_get_contents('ftp://host/lol.txt'));
 
 var_dump(filesize('ftp://host/lol.txt'));
+
+FtpStream::unregister(); // Restore the built-in wrapper
 ?>
 ```
 
@@ -22,4 +26,4 @@ The native `ftp://` wrapper is quite buggy and not very efficient: multiple call
 
 You can use almost all native PHP functions with this wrapper.
 
-`ftps://` is also supported.
+`ftps://` is also supported with `FtpsStream`.

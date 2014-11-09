@@ -8,5 +8,10 @@
             "email": "contact@emersion.fr"
         }
     ],
-    "require": {}
+    "require": {},
+    "autoload": {
+        "psr-0": {
+            "Wrappers\\": "src/"
+        }
+    }
 }

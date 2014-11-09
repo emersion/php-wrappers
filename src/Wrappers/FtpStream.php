@@ -1,13 +1,15 @@
 <?php
+
+namespace Wrappers;
+
 /**
  * A FTP stream wrapper.
  * @see http://php.net/manual/en/class.streamwrapper.php
  * @author emersion <contact@emersion.fr>
  */
 class FtpStream {
+	protected static $protocol = 'ftp';
 	protected static $connections = array();
-
-	public $context;
 
 	protected $conn;
 
@@ -19,6 +21,17 @@ class FtpStream {
 
 	protected $dir_list;
 	protected $dir_pos;
+
+	public static function register() {
+		if (in_array(static::$protocol, stream_get_wrappers())) {
+			stream_wrapper_unregister(static::$protocol);
+		}
+		stream_wrapper_register(static::$protocol, get_called_class());
+	}
+
+	public static function unregister() {
+		stream_wrapper_restore(static::$protocol);
+	}
 
 	protected static function conn_new($host, $port) {
 		return ftp_connect($host, $port);
@@ -39,12 +52,12 @@ class FtpStream {
 			}
 		}
 
-		if (isset(self::$connections[$connId])) {
-			return self::$connections[$connId];
+		if (isset(static::$connections[$connId])) {
+			return static::$connections[$connId];
 		}
 
 		$port = (isset($urlData['port'])) ? $urlData['port'] : 21;
-		if (($conn = self::conn_new($urlData['host'], $port)) === false) {
+		if (($conn = static::conn_new($urlData['host'], $port)) === false) {
 			return false;
 		}
 
@@ -54,14 +67,17 @@ class FtpStream {
 			}
 		}
 
-		self::$connections[$connId] = $conn;
+		static::$connections[$connId] = $conn;
 		return $conn;
 	}
 
 	protected function conn_open($url) {
 		$this->url = $url;
 
-		$conn = self::conn_get($url);
+		$conn = static::conn_get($url);
+		if ($conn === false) {
+			return false;
+		}
 
 		// Turn passive mode on
 		if (ftp_pasv($conn, true) === false) {
@@ -73,7 +89,9 @@ class FtpStream {
 	}
 
 	public function url_stat($url, $flags) {
-		$this->conn_open($url);
+		if (!$this->conn_open($url)) {
+			return false;
+		}
 
 		$stat = false;
 
@@ -133,7 +151,9 @@ class FtpStream {
 	// STREAM
 
 	public function stream_open($url, $mode, $options, &$opened_path) {
-		$this->conn_open($url);
+		if (!$this->conn_open($url)) {
+			return false;
+		}
 
 		$this->stream_handle = fopen('php://memory','r+');
 		$this->stream_pos = 0;
@@ -197,7 +217,9 @@ class FtpStream {
 	// DIR
 	
 	public function dir_opendir($url, $options) {
-		$this->conn_open($url);
+		if (!$this->conn_open($url)) {
+			return false;
+		}
 
 		$this->dir_pos = 0;
 
@@ -230,7 +252,9 @@ class FtpStream {
 	// FS
 	
 	public function mkdir($url, $mode, $options) {
-		$this->conn_open($url);
+		if (!$this->conn_open($url)) {
+			return false;
+		}
 
 		//TODO: mode is ignored
 		$path = parse_url($url, PHP_URL_PATH);
@@ -247,7 +271,9 @@ class FtpStream {
 	}
 
 	public function rename($url_from, $url_to) {
-		$this->conn_open($url);
+		if (!$this->conn_open($url)) {
+			return false;
+		}
 
 		$oldname = parse_url($url_from, PHP_URL_PATH);
 		$newname = parse_url($url_to, PHP_URL_PATH);
@@ -255,21 +281,20 @@ class FtpStream {
 	}
 
 	public function unlink($url) {
-		$this->conn_open($url);
+		if (!$this->conn_open($url)) {
+			return false;
+		}
 
 		$path = parse_url($url, PHP_URL_PATH);
 		return ftp_delete($this->conn, $path);
 	}
 
 	public function rmdir($url, $options) {
-		$this->conn_open($url);
+		if (!$this->conn_open($url)) {
+			return false;
+		}
 
 		$path = parse_url($url, PHP_URL_PATH);
 		return ftp_rmdir($this->conn, $path);
 	}
 }
-
-if (in_array('ftp', stream_get_wrappers())) {
-	stream_wrapper_unregister('ftp');
-}
-stream_wrapper_register('ftp', 'FtpStream');
