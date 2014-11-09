@@ -6,6 +6,7 @@ High-performance wrappers for native FTP functions.
 ## Usage
 
 ```php
+<?php
 use FtpStream;
 
 var_dump(file_put_contents('ftp://host/lol.txt', 'Hello world'));
