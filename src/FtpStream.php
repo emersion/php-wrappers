@@ -20,15 +20,17 @@ class FtpStream {
 	protected $dir_list;
 	protected $dir_pos;
 
+	protected static function conn_new($host, $port) {
+		return ftp_connect($host, $port);
+	}
+
 	protected static function conn_get($url) {
 		$urlData = parse_url($url);
 
-		$host = $urlData['host'];
+		$connId = $urlData['host'];
 		if (isset($urlData['port'])) {
-			$host .= ':'.$urlData['port'];
+			$connId .= ':'.$urlData['port'];
 		}
-
-		$connId = $host;
 		if (isset($urlData['user'])) {
 			if (isset($urlData['pass'])) {
 				$connId = $urlData['user'].':'.$urlData['pass'].'@'.$connId;
@@ -41,7 +43,8 @@ class FtpStream {
 			return self::$connections[$connId];
 		}
 
-		if (($conn = ftp_connect($host)) === false) {
+		$port = (isset($urlData['port'])) ? $urlData['port'] : 21;
+		if (($conn = self::conn_new($urlData['host'], $port)) === false) {
 			return false;
 		}
 
@@ -72,13 +75,58 @@ class FtpStream {
 	public function url_stat($url, $flags) {
 		$this->conn_open($url);
 
-		// TODO: what if the file doesn't exist?
-		// TODO: implement missing fields
+		$stat = false;
+
 		$path = parse_url($url, PHP_URL_PATH);
-		$stat = array(
-			'size' => ftp_size($this->conn, $path),
-			'mtime' => ftp_mdtm($this->conn, $path)
-		);
+		$dirname = dirname($path);
+		$filename = basename($path);
+
+		if ($path != $dirname) {
+			$raw = ftp_rawlist($this->conn, $dirname);
+			if ($raw === false) {
+				return false;
+			}
+
+			$fileData = null;
+			foreach ($raw as $rawfile) {
+				$info = preg_split("/[\s]+/", $rawfile, 9);
+
+				if ($info[8] == $filename) {
+					// Mode: drwxrwxrwx -> 040777
+					$hrRights = $info[0];
+					$octalRights = 0;
+					if ($info[0]{0} == 'd') {
+						$octalRights +=  40000;
+					} else {
+						$octalRights += 100000;
+					}
+					for ($i = 0; $i < strlen($hrRights) - 1; $i++) {
+						$char = $hrRights{$i+1};
+						$val = 0;
+						switch ($char) {
+							case 'r':
+								$val = 4;
+								break;
+							case 'w':
+								$val = 2;
+								break;
+							case 'x':
+								$val = 1;
+								break;
+						}
+						$octalRights += pow(10, (int)((8 - $i) / 3)) * $val;
+					}
+
+					$stat = array(
+						'size' => (int) $info[4],
+						'mtime' => strtotime($info[6] . ' ' . $info[5] . ' ' . ((strpos($info[7], ':') === false) ? $info[7] : date('Y') . ' ' . $info[7]) ),
+						'mode' => octdec((string)$octalRights)
+					);
+					break;
+				}
+			}
+		}
+
 		return $stat;
 	}
 
@@ -189,6 +237,11 @@ class FtpStream {
 		if (ftp_mkdir($this->conn, $path) === false) {
 			return false;
 		}
+
+		// Try to chmod new dir
+		// See http://php.net/manual/en/function.ftp-chmod.php#93684
+		$mode = octdec(str_pad($mode, 4, '0', STR_PAD_LEFT));
+		ftp_chmod($this->conn, $mode, $path);
 
 		return true;
 	}
