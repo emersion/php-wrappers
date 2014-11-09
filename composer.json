@@ -1,0 +1,12 @@
+{
+    "name": "emersion/php-wrappers",
+    "description": "High-performance wrappers for native FTP functions.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "emersion",
+            "email": "contact@emersion.fr"
+        }
+    ],
+    "require": {}
+}
