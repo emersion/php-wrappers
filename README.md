@@ -1,7 +1,7 @@
 php-wrappers
 ============
 
-High-performance wrappers for native FTP functions.
+High-performance wrappers for native FTP and SFTP functions.
 
 ## Usage
 
@@ -26,4 +26,4 @@ The native `ftp://` wrapper is quite buggy and not very efficient: multiple call
 
 You can use almost all native PHP functions with this wrapper.
 
-`ftps://` is also supported with `FtpsStream`.
+`ftps://` and `sftp://` are also supported with `FtpsStream` and `SftpStream` (for SFTP, you'll need to enable the [`ssh2`](http://php.net/manual/en/book.ssh2.php) extension).
