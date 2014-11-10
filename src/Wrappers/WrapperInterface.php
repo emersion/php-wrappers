@@ -14,11 +14,6 @@ interface WrapperInterface {
 	//public $context;
 
 	/**
-	 * Constructs a new stream wrapper.
-	 */
-	public function __construct();
-
-	/**
 	 *  Close directory handle.
 	 * @return bool
 	 */

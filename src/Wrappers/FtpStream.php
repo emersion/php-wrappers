@@ -7,9 +7,9 @@ namespace Wrappers;
  * @see http://php.net/manual/en/class.streamwrapper.php
  * @author emersion <contact@emersion.fr>
  */
-class FtpStream {
+class FtpStream extends Stream /*implements WrapperInterface*/ {
 	protected static $protocol = 'ftp';
-	protected static $connections = array();
+	protected static $defaultPort = 21;
 
 	protected $conn;
 
@@ -22,19 +22,12 @@ class FtpStream {
 	protected $dir_list;
 	protected $dir_pos;
 
-	public static function register() {
-		if (in_array(static::$protocol, stream_get_wrappers())) {
-			stream_wrapper_unregister(static::$protocol);
-		}
-		stream_wrapper_register(static::$protocol, get_called_class());
-	}
-
-	public static function unregister() {
-		stream_wrapper_restore(static::$protocol);
-	}
-
 	protected static function conn_new($host, $port) {
 		return ftp_connect($host, $port);
+	}
+
+	protected static function conn_close($conn) {
+		return ftp_close($conn);
 	}
 
 	protected static function conn_get($url) {
@@ -56,7 +49,7 @@ class FtpStream {
 			return static::$connections[$connId];
 		}
 
-		$port = (isset($urlData['port'])) ? $urlData['port'] : 21;
+		$port = (isset($urlData['port'])) ? $urlData['port'] : static::$defaultPort;
 		if (($conn = static::conn_new($urlData['host'], $port)) === false) {
 			return false;
 		}
@@ -67,10 +60,20 @@ class FtpStream {
 			}
 		}
 
+		// Turn passive mode on
+		if (ftp_pasv($conn, true) === false) {
+			return false;
+		}
+
 		static::$connections[$connId] = $conn;
 		return $conn;
 	}
 
+	/**
+	 * Open a FTP connection.
+	 * @param  string $url The FTP URL (ftp://).
+	 * @return bool        True on success, false on failure.
+	 */
 	protected function conn_open($url) {
 		$this->url = $url;
 
@@ -79,13 +82,40 @@ class FtpStream {
 			return false;
 		}
 
-		// Turn passive mode on
-		if (ftp_pasv($conn, true) === false) {
-			return false;
-		}
-
 		$this->conn = $conn;
 		return true;
+	}
+
+	/**
+	 * Convert mode from drwxrwxrwx to 040777.
+	 * @param  string $hrRights Human-readable mode.
+	 * @return int              Octal mode.
+	 */
+	protected function mode_hr_to_octal($hrRights) {
+		$octalRights = 0;
+		if ($hrRights{0} == 'd') {
+			$octalRights +=  40000;
+		} else {
+			$octalRights += 100000;
+		}
+		for ($i = 0; $i < strlen($hrRights) - 1; $i++) {
+			$char = $hrRights{$i+1};
+			$val = 0;
+			switch ($char) {
+				case 'r':
+					$val = 4;
+					break;
+				case 'w':
+					$val = 2;
+					break;
+				case 'x':
+					$val = 1;
+					break;
+			}
+			$octalRights += pow(10, (int)((8 - $i) / 3)) * $val;
+		}
+
+		return octdec((string)$octalRights);
 	}
 
 	public function url_stat($url, $flags) {
@@ -110,35 +140,10 @@ class FtpStream {
 				$info = preg_split("/[\s]+/", $rawfile, 9);
 
 				if ($info[8] == $filename) {
-					// Mode: drwxrwxrwx -> 040777
-					$hrRights = $info[0];
-					$octalRights = 0;
-					if ($info[0]{0} == 'd') {
-						$octalRights +=  40000;
-					} else {
-						$octalRights += 100000;
-					}
-					for ($i = 0; $i < strlen($hrRights) - 1; $i++) {
-						$char = $hrRights{$i+1};
-						$val = 0;
-						switch ($char) {
-							case 'r':
-								$val = 4;
-								break;
-							case 'w':
-								$val = 2;
-								break;
-							case 'x':
-								$val = 1;
-								break;
-						}
-						$octalRights += pow(10, (int)((8 - $i) / 3)) * $val;
-					}
-
 					$stat = array(
 						'size' => (int) $info[4],
 						'mtime' => strtotime($info[6] . ' ' . $info[5] . ' ' . ((strpos($info[7], ':') === false) ? $info[7] : date('Y') . ' ' . $info[7]) ),
-						'mode' => octdec((string)$octalRights)
+						'mode' => $this->mode_hr_to_octal($info[0])
 					);
 					break;
 				}
@@ -209,9 +214,43 @@ class FtpStream {
 		return $this->stream_pos;
 	}
 
+	public function stream_set_option($option, $arg1, $arg2) {
+		return false; // TODO: not implemented
+	}
+
+	public function stream_truncate($new_size) {
+		return ftruncate($this->stream_handle, $new_size);
+	}
+
 	public function stream_close() {
 		fclose($this->stream_handle);
 		$this->stream_handle = null;
+	}
+
+	public function stream_metadata($url, $option, $value) {
+		if (!$this->conn_open($url)) {
+			return false;
+		}
+
+		switch ($option) {
+			case STREAM_META_TOUCH:
+				$stat = $this->url_stat($url, 0);
+				if ($stat === false) { // Create the file if it doesn't exist
+					$this->stream_open($url, 'w');
+					$this->stream_write('');
+					$this->stream_flush();
+					$this->stream_close();
+				}
+				return true;
+			case STREAM_META_OWNER_NAME:
+			case STREAM_META_OWNER:
+			case STREAM_META_GROUP_NAME:
+			case STREAM_META_GROUP:
+				return false; // Unsupported
+			case STREAM_META_ACCESS:
+				$path = parse_url($url, PHP_URL_PATH);
+				return $this->chmod($path, $value);
+		}
 	}
 
 	// DIR
@@ -251,6 +290,15 @@ class FtpStream {
 
 	// FS
 	
+	protected function chmod($path, $mode) {
+		// See http://php.net/manual/en/function.ftp-chmod.php#93684
+		$mode = octdec(str_pad($mode, 4, '0', STR_PAD_LEFT));
+		if (ftp_chmod($this->conn, $mode, $path) === false) {
+			return false;
+		}
+		return true;
+	}
+
 	public function mkdir($url, $mode, $options) {
 		if (!$this->conn_open($url)) {
 			return false;
@@ -263,9 +311,7 @@ class FtpStream {
 		}
 
 		// Try to chmod new dir
-		// See http://php.net/manual/en/function.ftp-chmod.php#93684
-		$mode = octdec(str_pad($mode, 4, '0', STR_PAD_LEFT));
-		ftp_chmod($this->conn, $mode, $path);
+		$this->chmod($path, $mode);
 
 		return true;
 	}
