@@ -65,9 +65,13 @@ class SftpStream extends Stream /*implements WrapperInterface*/ {
 		return true;
 	}
 
-	protected function conn_url($url = null) {
-		$path = parse_url((!empty($url)) ? $url : $this->url, PHP_URL_PATH);
-		return 'ssh2.sftp://'.$this->sftp.'/'.$path;
+	protected function conn_url($oldUrl = null) {
+		$path = parse_url((!empty($oldUrl)) ? $oldUrl : $this->url, PHP_URL_PATH);
+		$url = 'ssh2.sftp://'.$this->sftp.'/'.$path;
+		if ($path == '/') { // See http://php.net/manual/en/wrappers.ssh2.php#112128
+			$url .= '.';
+		}
+		return $url;
 	}
 
 	public function url_stat($url, $flags) {
