@@ -22,68 +22,26 @@ class FtpStream extends Stream /*implements WrapperInterface*/ {
 	protected $dir_list;
 	protected $dir_pos;
 
-	protected static function conn_new($host, $port) {
-		return ftp_connect($host, $port);
-	}
-
-	protected static function conn_close($conn) {
-		return ftp_close($conn);
-	}
-
-	protected static function conn_get($url) {
-		$urlData = parse_url($url);
-
-		$connId = $urlData['host'];
-		if (isset($urlData['port'])) {
-			$connId .= ':'.$urlData['port'];
-		}
-		if (isset($urlData['user'])) {
-			if (isset($urlData['pass'])) {
-				$connId = $urlData['user'].':'.$urlData['pass'].'@'.$connId;
-			} else {
-				$connId = $urlData['user'].'@'.$connId;
-			}
-		}
-
-		if (isset(static::$connections[$connId])) {
-			return static::$connections[$connId];
-		}
-
-		$port = (isset($urlData['port'])) ? $urlData['port'] : static::$defaultPort;
-		if (($conn = static::conn_new($urlData['host'], $port)) === false) {
+	protected static function conn_new($urlData) {
+		$conn = ftp_connect($urlData['host'], $urlData['port']);
+		if ($conn === false) {
 			return false;
 		}
 
-		if (isset($urlData['user'])) {
-			if (!ftp_login($conn, $urlData['user'], (isset($urlData['pass'])) ? $urlData['pass'] : '')) {
+		if (!empty($urlData['user'])) {
+			if (!ftp_login($conn, $urlData['user'], $urlData['pass'])) {
 				return false;
 			}
 		}
 
 		// Turn passive mode on
-		if (ftp_pasv($conn, true) === false) {
-			return false;
-		}
+		ftp_pasv($conn, true);
 
-		static::$connections[$connId] = $conn;
 		return $conn;
 	}
 
-	/**
-	 * Open a FTP connection.
-	 * @param  string $url The FTP URL (ftp://).
-	 * @return bool        True on success, false on failure.
-	 */
-	protected function conn_open($url) {
-		$this->url = $url;
-
-		$conn = static::conn_get($url);
-		if ($conn === false) {
-			return false;
-		}
-
-		$this->conn = $conn;
-		return true;
+	protected static function conn_close($conn) {
+		return ftp_close($conn);
 	}
 
 	/**
@@ -207,7 +165,7 @@ class FtpStream extends Stream /*implements WrapperInterface*/ {
 	}
 
 	public function stream_stat() {
-		return fstat($this->stream_handle);
+		return $this->url_stat($this->url);
 	}
 
 	public function stream_tell() {
@@ -304,7 +262,6 @@ class FtpStream extends Stream /*implements WrapperInterface*/ {
 			return false;
 		}
 
-		//TODO: mode is ignored
 		$path = parse_url($url, PHP_URL_PATH);
 		if (ftp_mkdir($this->conn, $path) === false) {
 			return false;
@@ -317,7 +274,7 @@ class FtpStream extends Stream /*implements WrapperInterface*/ {
 	}
 
 	public function rename($url_from, $url_to) {
-		if (!$this->conn_open($url)) {
+		if (!$this->conn_open($url_from)) {
 			return false;
 		}
 

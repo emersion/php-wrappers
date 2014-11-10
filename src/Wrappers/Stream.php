@@ -9,6 +9,8 @@ namespace Wrappers;
  */
 abstract class Stream {
 	protected static $protocol = '';
+	protected static $defaultPort = -1;
+
 	protected static $registered = false;
 	protected static $connections = array();
 
@@ -35,6 +37,67 @@ abstract class Stream {
 		}
 	}
 
-	abstract protected static function conn_new($host, $port);
+	protected static function parse_url($url) {
+		$data = parse_url($url);
+		$data = array_merge(array(
+			'host' => '',
+			'port' => static::$defaultPort,
+			'user' => '',
+			'pass' => ''
+		), $data);
+		$data['user'] = urldecode($data['user']);
+		$data['pass'] = urldecode($data['pass']);
+		return $data;
+	}
+
+	protected static function conn_id($urlData) {
+		$connId = $urlData['host'];
+		if (!empty($urlData['port'])) {
+			$connId .= ':'.$urlData['port'];
+		}
+		if (!empty($urlData['user'])) {
+			if (!empty($urlData['pass'])) {
+				$connId = $urlData['user'].':'.$urlData['pass'].'@'.$connId;
+			} else {
+				$connId = $urlData['user'].'@'.$connId;
+			}
+		}
+		return $connId;
+	}
+
+	protected static function conn_get($url) {
+		$urlData = static::parse_url($url);
+		$connId = static::conn_id($urlData);
+
+		if (isset(static::$connections[$connId])) {
+			return static::$connections[$connId];
+		}
+
+		if (($conn = static::conn_new($urlData)) === false) {
+			return false;
+		}
+
+		static::$connections[$connId] = $conn;
+		return $conn;
+	}
+
+	abstract protected static function conn_new($urlData);
 	abstract protected static function conn_close($conn);
+
+	/**
+	 * Open a new connection.
+	 * @param  string $url The URL.
+	 * @return bool        True on success, false on failure.
+	 */
+	protected function conn_open($url) {
+		$this->url = $url;
+
+		$conn = static::conn_get($url);
+		if ($conn === false) {
+			return false;
+		}
+
+		$this->conn = $conn;
+		return true;
+	}
 }
