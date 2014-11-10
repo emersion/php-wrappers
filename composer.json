@@ -5,8 +5,7 @@
     "version": "1.0-beta",
     "authors": [
         {
-            "name": "emersion",
-            "email": "contact@emersion.fr"
+            "name": "emersion"
         }
     ],
     "require": {},
