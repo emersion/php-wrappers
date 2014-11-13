@@ -34,6 +34,8 @@ You can use almost all native PHP functions with this wrapper.
 
 _(Lower is better)_
 
+You can run benchmarks using `tests/benchmark.php`.
+
 ## Methods
 
 ```php
