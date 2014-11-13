@@ -165,7 +165,7 @@ class FtpStream extends Stream /*implements WrapperInterface*/ {
 	}
 
 	public function stream_stat() {
-		return $this->url_stat($this->url);
+		return $this->url_stat($this->url, 0);
 	}
 
 	public function stream_tell() {
