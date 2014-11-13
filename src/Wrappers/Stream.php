@@ -35,6 +35,7 @@ abstract class Stream {
 		foreach (static::$connections as $conn) {
 			static::conn_close($conn);
 		}
+		static::$connections = array();
 	}
 
 	protected static function parse_url($url) {
