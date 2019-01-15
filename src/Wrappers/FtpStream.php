@@ -229,8 +229,14 @@ class FtpStream extends Stream /*implements WrapperInterface*/ {
 	}
 
 	public function dir_readdir() {
-		if (($filename = next($this->dir_list)) === false) {
-			return false;
+		if ($this->dir_pos === 0) {
+			if (($filename = current($this->dir_list)) === false) {
+				return false;
+			}
+		} else {
+			if (($filename = next($this->dir_list)) === false) {
+				return false;
+			}
 		}
 		$this->dir_pos++;
 		return $filename;
