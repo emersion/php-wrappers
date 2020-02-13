@@ -51,13 +51,13 @@ class FtpStream extends Stream /*implements WrapperInterface*/ {
 	 */
 	protected function mode_hr_to_octal($hrRights) {
 		$octalRights = 0;
-		if ($hrRights{0} == 'd') {
+		if ($hrRights[0] == 'd') {
 			$octalRights +=  40000;
 		} else {
 			$octalRights += 100000;
 		}
 		for ($i = 0; $i < strlen($hrRights) - 1; $i++) {
-			$char = $hrRights{$i+1};
+			$char = $hrRights[$i+1];
 			$val = 0;
 			switch ($char) {
 				case 'r':
